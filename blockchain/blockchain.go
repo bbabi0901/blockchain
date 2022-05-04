@@ -6,22 +6,21 @@ import (
 	"sync"
 )
 
-type block struct {
+type Block struct {
 	Data     string
 	Hash     string
 	PrevHash string
 }
 
 type blockchain struct {
-	blocks []*block
+	blocks []*Block
 }
 
-// singleton pattern; making variable that is pointer to blockchain struct
 var b *blockchain
 
-var once sync.Once // 몇 개의 goroutine이 돌아가더라도 한번만 호출되게 해준다. >> initializing이 한번만 돌아가게끔.
+var once sync.Once
 
-func (b *block) getHash() {
+func (b *Block) getHash() {
 	hash := sha256.Sum256([]byte(b.Data + b.PrevHash))
 	b.Hash = fmt.Sprintf("%x", hash)
 }
@@ -34,8 +33,8 @@ func getLastHash() string {
 	return GetBlockchain().blocks[totalBlocks-1].Hash
 }
 
-func createBlock(data string) *block {
-	newBlock := block{data, "", getLastHash()}
+func createBlock(data string) *Block {
+	newBlock := Block{data, "", getLastHash()}
 	newBlock.getHash()
 	return &newBlock
 }
@@ -54,6 +53,6 @@ func GetBlockchain() *blockchain {
 	return b
 }
 
-func (b *blockchain) AllBlocks() []*block {
+func (b *blockchain) AllBlocks() []*Block {
 	return b.blocks
 }
