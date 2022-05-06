@@ -35,7 +35,6 @@ func add(rw http.ResponseWriter, r *http.Request) {
 		blockchain.Blockchain().AddBlock(data)
 		http.Redirect(rw, r, "/", http.StatusPermanentRedirect)
 	}
-
 }
 
 func Start(port int) {
