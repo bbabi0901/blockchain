@@ -10,13 +10,13 @@ import (
 )
 
 type Block struct {
-	Data      string `json:"data"`
-	Hash      string `json:"hash"`
-	PrevHash  string `json:"prevHash,omitempty"`
-	Height    int    `json:"height"`
-	Diffculty int    `json:"difficulty"`
-	Nonce     int    `json:"nonce"`
-	Timestamp int    `json:"timestamp"`
+	Hash        string `json:"hash"`
+	PrevHash    string `json:"prevHash,omitempty"`
+	Height      int    `json:"height"`
+	Diffculty   int    `json:"difficulty"`
+	Nonce       int    `json:"nonce"`
+	Timestamp   int    `json:"timestamp"`
+	Transaction []*Tx  `json:"transaction"`
 }
 
 var ErrNotFound = errors.New("Block not found")
@@ -43,16 +43,17 @@ func (b *Block) mine() {
 	}
 }
 
-func createBlock(data string, prevHash string, height int) *Block {
+func createBlock(prevHash string, height int) *Block {
 	block := &Block{
-		Data:      data,
-		Hash:      "",
-		PrevHash:  prevHash,
-		Height:    height,
-		Diffculty: Blockchain().difficulty(),
-		Nonce:     0,
+		Hash:        "",
+		PrevHash:    prevHash,
+		Height:      height,
+		Diffculty:   Blockchain().difficulty(),
+		Nonce:       0,
+		Transaction: []*Tx{makeCoinbaseTx("BBaBi")},
 	}
 	block.mine()
+	block.Transaction = Mempool.TxToConfirm()
 	block.persist()
 	return block
 }
