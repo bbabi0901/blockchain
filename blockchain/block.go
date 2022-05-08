@@ -21,16 +21,8 @@ type Block struct {
 
 var ErrNotFound = errors.New("Block not found")
 
-func (b *Block) persist() {
-	db.SaveBlock(b.Hash, utils.ToBytes(b))
-}
-
-func (b *Block) restore(data []byte) {
-	utils.FromBytes(b, data)
-}
-
 func (b *Block) mine() {
-	target := strings.Repeat("0", Blockchain().difficulty())
+	target := strings.Repeat("0", getDifficulty(Blockchain()))
 	for {
 		b.Timestamp = int(time.Now().Unix())
 		hash := utils.Hash(b)
@@ -43,18 +35,26 @@ func (b *Block) mine() {
 	}
 }
 
-func createBlock(prevHash string, height int) *Block {
+func persist(b *Block) {
+	db.SaveBlock(b.Hash, utils.ToBytes(b))
+}
+
+func restore(data []byte, b *Block) {
+	utils.FromBytes(b, data)
+}
+
+func createBlock(prevHash string, height, diff int) *Block {
 	block := &Block{
 		Hash:        "",
 		PrevHash:    prevHash,
 		Height:      height,
-		Diffculty:   Blockchain().difficulty(),
+		Diffculty:   diff,
 		Nonce:       0,
 		Transaction: []*Tx{makeCoinbaseTx("BBaBi")},
 	}
 	block.mine()
 	block.Transaction = Mempool.TxToConfirm()
-	block.persist()
+	persist(block)
 	return block
 }
 
@@ -64,6 +64,6 @@ func FindBlock(hash string) (*Block, error) {
 		return nil, ErrNotFound
 	}
 	block := &Block{}
-	block.restore(blockBytes)
+	restore(blockBytes, block)
 	return block, nil
 }

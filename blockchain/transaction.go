@@ -17,14 +17,20 @@ type Tx struct {
 }
 
 type TxIn struct {
-	TxID  string
-	Index int
-	Owner string
+	TxID  string `json:"txId"`
+	Index int    `json:"index"`
+	Owner string `json:"owner"`
 }
 
 type TxOut struct {
-	Owner  string
+	Owner  string `json:"owner"`
+	Amount int    `json:"amount"`
+}
+
+type UTxOut struct {
+	TxID   string
 	Amount int
+	Index  int
 }
 
 type mempool struct {
@@ -32,6 +38,20 @@ type mempool struct {
 }
 
 var Mempool *mempool = &mempool{}
+
+// to check if unspent tx output is on mempool.
+func isOnMempool(uTxOut *UTxOut) bool {
+	exists := false
+	// labeling each for loops
+Outer:
+	for _, tx := range Mempool.Txs {
+		for _, input := range tx.TxIns {
+			exists = input.TxID == uTxOut.TxID && input.Index == uTxOut.Index
+			break Outer // you can only break inner loop if there's no labeling
+		}
+	}
+	return exists
+}
 
 func (t *Tx) getId() {
 	t.Id = utils.Hash(t)
@@ -65,25 +85,23 @@ func (m *mempool) AddTx(to string, amount int) error {
 }
 
 func makeTx(from, to string, amount int) (*Tx, error) {
-	if Blockchain().BalanceByAddress(from) < amount {
-		return nil, errors.New("Not Enough Balance")
+	if BalanceByAddress(from, Blockchain()) < amount {
+		return nil, errors.New("Not enough funds")
 	}
-	var txIns []*TxIn
 	var txOuts []*TxOut
+	var txIns []*TxIn
 	total := 0
-	oldTxOuts := Blockchain().TxOutsByAddress(from)
-	// from의 txOut을 하나씩 뒤져서 그 tx의 amount의 총합이 amount와 클 때까지 합하고 그걸 실행하는 txIn의 amount를 쓴다. 잔돈처리는 후술.
-	for _, txOut := range oldTxOuts {
-		if total > amount {
+	uTxOuts := UTxOutsByAddress(from, Blockchain())
+
+	for _, uTxOut := range uTxOuts {
+		if total >= amount {
 			break
 		}
-		txIn := &TxIn{txOut.Owner, txOut.Amount}
+		txIn := &TxIn{uTxOut.TxID, uTxOut.Index, from}
 		txIns = append(txIns, txIn)
-		total += txIn.Amount
+		total += uTxOut.Amount
 	}
-	// txIns -> {to, total}. txOuts -> {from, change}, {to, amount}
-	change := total - amount
-	if change != 0 {
+	if change := total - amount; change != 0 {
 		changeTxOut := &TxOut{from, change}
 		txOuts = append(txOuts, changeTxOut)
 	}
@@ -96,6 +114,7 @@ func makeTx(from, to string, amount int) (*Tx, error) {
 		TxOuts:    txOuts,
 	}
 	tx.getId()
+
 	return tx, nil
 }
 

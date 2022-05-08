@@ -24,37 +24,58 @@ var b *blockchain
 var once sync.Once
 
 func Blockchain() *blockchain {
-	if b == nil {
-		once.Do(func() {
-			b = &blockchain{
-				Height: 0,
-			}
-			// search for checkpoint on the db, then restore the blockchain from the bytes
-			// so gonna make func in db.go to find data from db
-			checkpoint := db.Checkpoint()
-			if checkpoint == nil { // db의 checkpoint에 저장된 데이터가 없으면 만들어 놓은 empty blockchain에 최초의 block생성
-				b.AddBlock()
-			} else { // db의 checkpoint에 저장된 데이터가 있으면 byte로 저장된 blockchain을 decoding해서 복원
-				b.restore(checkpoint)
-			}
-		})
-	}
+	once.Do(func() {
+		b = &blockchain{
+			Height: 0,
+		}
+		// search for checkpoint on the db, then restore the blockchain from the bytes
+		// so gonna make func in db.go to find data from db
+		checkpoint := db.Checkpoint()
+		if checkpoint == nil { // db의 checkpoint에 저장된 데이터가 없으면 만들어 놓은 empty blockchain에 최초의 block생성
+			b.AddBlock()
+		} else { // db의 checkpoint에 저장된 데이터가 있으면 byte로 저장된 blockchain을 decoding해서 복원
+			b.restore(checkpoint)
+		}
+	})
 	return b
 }
 
-func (b *blockchain) difficulty() int {
+/*
+go rule:
+Method is only used when it’s mutating the struct
+If not, we use function.
+Modifying -> method
+Just using struct as an input -> function
+*/
+
+func (b *blockchain) AddBlock() {
+	block := createBlock(b.NewestHash, b.Height+1, getDifficulty(b))
+	b.NewestHash = block.Hash
+	b.Height = block.Height
+	b.CurrentDifficulty = block.Diffculty
+	persistBlockchain(b)
+}
+
+// mutating the difficulty of *blockchain, thus it should be method
+func (b *blockchain) restore(data []byte) {
+	utils.FromBytes(b, data)
+}
+
+// mutating the difficulty of *blockchain, thus it should be method
+func getDifficulty(b *blockchain) int {
 	if b.Height == 0 {
 		return defaultDifficulty
 	} else if b.Height%difficultyInterval == 0 {
 		// recalculate difficulty
-		return b.recalculateDiffculty()
+		return recalculateDiffculty(b)
 	} else {
 		return b.CurrentDifficulty
 	}
 }
 
-func (b *blockchain) recalculateDiffculty() int {
-	allBlocks := b.Blocks()
+// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
+func recalculateDiffculty(b *blockchain) int {
+	allBlocks := Blocks(b)
 	newestBlock := allBlocks[0]
 	lastRecalculatedBlock := allBlocks[difficultyInterval-1]
 	actualTime := (newestBlock.Timestamp - lastRecalculatedBlock.Timestamp) / 60 // min
@@ -67,23 +88,13 @@ func (b *blockchain) recalculateDiffculty() int {
 	return b.CurrentDifficulty
 }
 
-func (b *blockchain) restore(data []byte) {
-	utils.FromBytes(b, data)
-}
-
-func (b *blockchain) persist() {
+// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
+func persistBlockchain(b *blockchain) {
 	db.SaveCheckpoint(utils.ToBytes(b))
 }
 
-func (b *blockchain) AddBlock() {
-	block := createBlock(b.NewestHash, b.Height+1)
-	b.NewestHash = block.Hash
-	b.Height = block.Height
-	b.CurrentDifficulty = block.Diffculty
-	b.persist()
-}
-
-func (b *blockchain) Blocks() []*Block {
+// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
+func Blocks(b *blockchain) []*Block {
 	var blocks []*Block
 	hashCursor := b.NewestHash
 	for {
@@ -98,30 +109,39 @@ func (b *blockchain) Blocks() []*Block {
 	return blocks
 }
 
-func (b *blockchain) TxOutsByAddress(address string) []*TxOut {
-	var ownedTxOuts []*TxOut
-	txOuts := b.txOuts()
-	for _, txOut := range txOuts {
-		if txOut.Owner == address {
-			ownedTxOuts = append(ownedTxOuts, txOut)
-		}
-	}
-	return ownedTxOuts
-}
+// Unspent transaction
+func UTxOutsByAddress(address string, b *blockchain) []*UTxOut {
+	var uTxOuts []*UTxOut
+	creatorTxs := make(map[string]bool)
 
-func (b *blockchain) txOuts() []*TxOut {
-	var txOuts []*TxOut
-	blocks := b.Blocks()
-	for _, block := range blocks {
+	// finding tx output that hasn't been referenced
+	for _, block := range Blocks(b) {
 		for _, tx := range block.Transaction {
-			txOuts = append(txOuts, tx.TxOuts...)
+			// marking tx id to track the output that are being used to create input -> marked output = spent output
+			for _, input := range tx.TxIns {
+				if input.Owner == address {
+					creatorTxs[input.TxID] = true
+				}
+			}
+			for index, output := range tx.TxOuts {
+				if output.Owner == address {
+					// if boolean is not TRUE, it means the output is not marked. That means it is unspent output
+					if _, ok := creatorTxs[tx.Id]; !ok {
+						uTxOut := &UTxOut{tx.Id, output.Amount, index}
+						// if unspent tx out is already on mempool, there's no need to append tx again.
+						if !isOnMempool(uTxOut) {
+							uTxOuts = append(uTxOuts, uTxOut)
+						}
+					}
+				}
+			}
 		}
 	}
-	return txOuts
+	return uTxOuts
 }
 
-func (b *blockchain) BalanceByAddress(address string) int {
-	txOuts := b.TxOutsByAddress(address)
+func BalanceByAddress(address string, b *blockchain) int {
+	txOuts := UTxOutsByAddress(address, b)
 	var amount int
 	for _, txOut := range txOuts {
 		amount += txOut.Amount
