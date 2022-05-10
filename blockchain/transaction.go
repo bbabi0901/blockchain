@@ -42,8 +42,8 @@ var Mempool *mempool = &mempool{}
 // to check if unspent tx output is on mempool.
 func isOnMempool(uTxOut *UTxOut) bool {
 	exists := false
-	// labeling each for loops
-Outer:
+
+Outer: // labeling the loop
 	for _, tx := range Mempool.Txs {
 		for _, input := range tx.TxIns {
 			exists = input.TxID == uTxOut.TxID && input.Index == uTxOut.Index
