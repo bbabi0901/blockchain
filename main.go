@@ -1,8 +1,9 @@
 package main
 
-import "github.com/bbabi0901/blockchain/wallet"
+import (
+	"github.com/bbabi0901/blockchain/cli"
+)
 
 func main() {
-	// cli.Start()
-	wallet.Start()
+	cli.Start()
 }

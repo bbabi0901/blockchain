@@ -109,6 +109,23 @@ func Blocks(b *blockchain) []*Block {
 	return blocks
 }
 
+func Txs(b *blockchain) []*Tx {
+	var txs []*Tx
+	for _, block := range Blocks(b) {
+		txs = append(txs, block.Transaction...)
+	}
+	return txs
+}
+
+func FindTx(b *blockchain, targetID string) *Tx {
+	for _, tx := range Txs(b) {
+		if tx.Id == targetID {
+			return tx
+		}
+	}
+	return nil
+}
+
 // Unspent transaction
 func UTxOutsByAddress(address string, b *blockchain) []*UTxOut {
 	var uTxOuts []*UTxOut
@@ -119,12 +136,15 @@ func UTxOutsByAddress(address string, b *blockchain) []*UTxOut {
 		for _, tx := range block.Transaction {
 			// marking tx id to track the output that are being used to create input -> marked output = spent output
 			for _, input := range tx.TxIns {
-				if input.Owner == address {
+				if input.Signature == "COINBASE" {
+					break
+				}
+				if FindTx(b, input.TxID).TxOuts[input.Index].Address == address {
 					creatorTxs[input.TxID] = true
 				}
 			}
 			for index, output := range tx.TxOuts {
-				if output.Owner == address {
+				if output.Address == address {
 					// if boolean is not TRUE, it means the output is not marked. That means it is unspent output
 					if _, ok := creatorTxs[tx.Id]; !ok {
 						uTxOut := &UTxOut{tx.Id, output.Amount, index}

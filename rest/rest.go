@@ -8,6 +8,7 @@ import (
 
 	"github.com/bbabi0901/blockchain/blockchain"
 	"github.com/bbabi0901/blockchain/utils"
+	"github.com/bbabi0901/blockchain/wallet"
 	"github.com/gorilla/mux"
 )
 
@@ -25,6 +26,10 @@ type urlDescription struct {
 type balanceResponse struct {
 	Address string `json:"address"`
 	Balance int    `json:"balance"`
+}
+
+type myWalletResponse struct {
+	Address string `json:"address"`
 }
 
 type addTxPayload struct {
@@ -120,6 +125,13 @@ func mempool(rw http.ResponseWriter, r *http.Request) {
 	utils.HandleErr(json.NewEncoder(rw).Encode(blockchain.Mempool))
 }
 
+func myWallet(rw http.ResponseWriter, r *http.Request) {
+	address := wallet.Wallet().Address
+	// json.NewEncoder(rw).Encode(myWalletResponse{Address: address})
+	// anonymous struct로 대신해도 된다 instead of making struct myWalletResponse
+	json.NewEncoder(rw).Encode(struct{ Address string }{Address: address})
+}
+
 func transactions(rw http.ResponseWriter, r *http.Request) {
 	var payload addTxPayload
 	// decode from request body and turn it to struct, addTxPayload
@@ -147,8 +159,9 @@ func Start(aPort int) {
 	router.HandleFunc("/status", status).Methods("GET")
 	router.HandleFunc("/blocks", blocks).Methods("GET", "POST")
 	router.HandleFunc("/blocks/{hash:[a-f0-9]+}", block).Methods("GET")
-	router.HandleFunc("/balance/{address}", balance)
-	router.HandleFunc("/mempool", mempool)
+	router.HandleFunc("/balance/{address}", balance).Methods("GET")
+	router.HandleFunc("/mempool", mempool).Methods("GET")
+	router.HandleFunc("/wallet", myWallet).Methods("GET")
 	router.HandleFunc("/transactions", transactions).Methods("POST")
 
 	fmt.Printf("Listening on http://localhost%s\n", port)
