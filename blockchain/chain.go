@@ -40,7 +40,7 @@ func (b *blockchain) AddBlock() {
 	block := createBlock(b.NewestHash, b.Height+1, getDifficulty(b))
 	b.NewestHash = block.Hash
 	b.Height = block.Height
-	b.CurrentDifficulty = block.Diffculty
+	b.CurrentDifficulty = block.Difficulty
 	persistBlockchain(b)
 }
 
@@ -49,17 +49,19 @@ func Blockchain() *blockchain {
 		b = &blockchain{
 			Height: 0,
 		}
+		// search for checkpoint on the db, then restore the blockchain from the bytes
+		// so gonna make func in db.go to find data from db
 		checkpoint := db.Checkpoint()
-		if checkpoint == nil {
+		if checkpoint == nil { // db의 checkpoint에 저장된 데이터가 없으면 만들어 놓은 empty blockchain에 최초의 block생성
 			b.AddBlock()
-		} else {
+		} else { // db의 checkpoint에 저장된 데이터가 있으면 byte로 저장된 blockchain을 decoding해서 복원
 			b.restore(checkpoint)
 		}
 	})
 	return b
 }
 
-// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
+// mutating the difficulty of *blockchain, thus it should be method
 func getDifficulty(b *blockchain) int {
 	if b.Height == 0 {
 		return defaultDifficulty
@@ -71,6 +73,7 @@ func getDifficulty(b *blockchain) int {
 	}
 }
 
+// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
 func recalculateDiffculty(b *blockchain) int {
 	allBlocks := Blocks(b)
 	newestBlock := allBlocks[0]
@@ -85,10 +88,12 @@ func recalculateDiffculty(b *blockchain) int {
 	return b.CurrentDifficulty
 }
 
+// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
 func persistBlockchain(b *blockchain) {
 	db.SaveCheckpoint(utils.ToBytes(b))
 }
 
+// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
 func Blocks(b *blockchain) []*Block {
 	var blocks []*Block
 	hashCursor := b.NewestHash
@@ -107,26 +112,29 @@ func Blocks(b *blockchain) []*Block {
 func Txs(b *blockchain) []*Tx {
 	var txs []*Tx
 	for _, block := range Blocks(b) {
-		txs = append(txs, block.Transaction...)
+		txs = append(txs, block.Transactions...)
 	}
 	return txs
 }
 
 func FindTx(b *blockchain, targetID string) *Tx {
 	for _, tx := range Txs(b) {
-		if tx.Id == targetID {
+		if tx.ID == targetID {
 			return tx
 		}
 	}
 	return nil
 }
 
+// Unspent transaction
 func UTxOutsByAddress(address string, b *blockchain) []*UTxOut {
 	var uTxOuts []*UTxOut
 	creatorTxs := make(map[string]bool)
 
+	// finding tx output that hasn't been referenced
 	for _, block := range Blocks(b) {
-		for _, tx := range block.Transaction {
+		for _, tx := range block.Transactions {
+			// marking tx id to track the output that are being used to create input -> marked output = spent output
 			for _, input := range tx.TxIns {
 				if input.Signature == "COINBASE" {
 					break
@@ -137,8 +145,10 @@ func UTxOutsByAddress(address string, b *blockchain) []*UTxOut {
 			}
 			for index, output := range tx.TxOuts {
 				if output.Address == address {
-					if _, ok := creatorTxs[tx.Id]; !ok {
-						uTxOut := &UTxOut{tx.Id, output.Amount, index}
+					// if boolean is not TRUE, it means the output is not marked. That means it is unspent output
+					if _, ok := creatorTxs[tx.ID]; !ok {
+						uTxOut := &UTxOut{tx.ID, output.Amount, index}
+						// if unspent tx out is already on mempool, there's no need to append tx again.
 						if !isOnMempool(uTxOut) {
 							uTxOuts = append(uTxOuts, uTxOut)
 						}

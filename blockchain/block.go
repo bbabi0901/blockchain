@@ -10,19 +10,37 @@ import (
 )
 
 type Block struct {
-	Hash        string `json:"hash"`
-	PrevHash    string `json:"prevHash,omitempty"`
-	Height      int    `json:"height"`
-	Diffculty   int    `json:"difficulty"`
-	Nonce       int    `json:"nonce"`
-	Timestamp   int    `json:"timestamp"`
-	Transaction []*Tx  `json:"transaction"`
+	Hash         string `json:"hash"`
+	PrevHash     string `json:"prevHash,omitempty"`
+	Height       int    `json:"height"`
+	Difficulty   int    `json:"difficulty"`
+	Nonce        int    `json:"nonce"`
+	Timestamp    int    `json:"timestamp"`
+	Transactions []*Tx  `json:"transactions"`
+}
+
+func (b *Block) persist() {
+	db.SaveBlock(b.Hash, utils.ToBytes(b))
 }
 
 var ErrNotFound = errors.New("Block not found")
 
+func (b *Block) restore(data []byte) {
+	utils.FromBytes(b, data)
+}
+
+func FindBlock(hash string) (*Block, error) {
+	blockBytes := db.Block(hash)
+	if blockBytes == nil {
+		return nil, ErrNotFound
+	}
+	block := &Block{}
+	block.restore(blockBytes)
+	return block, nil
+}
+
 func (b *Block) mine() {
-	target := strings.Repeat("0", getDifficulty(Blockchain()))
+	target := strings.Repeat("0", b.Difficulty)
 	for {
 		b.Timestamp = int(time.Now().Unix())
 		hash := utils.Hash(b)
@@ -35,35 +53,16 @@ func (b *Block) mine() {
 	}
 }
 
-func persist(b *Block) {
-	db.SaveBlock(b.Hash, utils.ToBytes(b))
-}
-
-func restore(data []byte, b *Block) {
-	utils.FromBytes(b, data)
-}
-
 func createBlock(prevHash string, height, diff int) *Block {
 	block := &Block{
-		Hash:        "",
-		PrevHash:    prevHash,
-		Height:      height,
-		Diffculty:   diff,
-		Nonce:       0,
-		Transaction: []*Tx{makeCoinbaseTx("BBaBi")},
+		Hash:       "",
+		PrevHash:   prevHash,
+		Height:     height,
+		Difficulty: diff,
+		Nonce:      0,
 	}
 	block.mine()
-	block.Transaction = Mempool.TxToConfirm()
-	persist(block)
+	block.Transactions = Mempool.TxToConfirm()
+	block.persist()
 	return block
-}
-
-func FindBlock(hash string) (*Block, error) {
-	blockBytes := db.Block(hash)
-	if blockBytes == nil {
-		return nil, ErrNotFound
-	}
-	block := &Block{}
-	restore(blockBytes, block)
-	return block, nil
 }

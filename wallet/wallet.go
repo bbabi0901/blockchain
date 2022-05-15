@@ -14,7 +14,11 @@ import (
 )
 
 const (
-	fileName string = "BBaBi.wallet"
+	myMessage     string = "BBaBi's Wallet"
+	hashedMessage string = "3c1b3cec2fd200f7d8847d72c667842006fe501d0f40050db5e832ebff6dc7d1"
+	privateKey    string = "307702010104207ce33616f538666ec75e4e1155ebbf7afb401632a31840df68c8c5c46f941a17a00a06082a8648ce3d030107a14403420004b522f1992aa67cddfdc2863384af2222dca2cc5557cdfd0723a6310af2ec25a5108417ab024e883d982a11f46b51dc7f4f60dd7ea5ca5f04df9344571079d9e3"
+	signature     string = "771b169e5de358546c18c3be6eaec13bef97aa1821ef08897ffa247daf7f9312ddf958be0fefaa1e0d85aaa1f1b3b1b1a70e7743ebfbfc93f0c9e47fbfddaf33"
+	fileName      string = "BBaBi.wallet"
 )
 
 type wallet struct {
@@ -36,19 +40,19 @@ func createPrivKey() *ecdsa.PrivateKey {
 }
 
 func persistKey(key *ecdsa.PrivateKey) {
-	bytes, err := x509.MarshalECPrivateKey(key)
+	keyAsecondHalfBytes, err := x509.MarshalECPrivateKey(key)
 	utils.HandleErr(err)
-	err = os.WriteFile(fileName, bytes, 0644) // 0644 -> permission for read and write
+	err = os.WriteFile(fileName, keyAsecondHalfBytes, 0644) // 0644; permission to write and read
 	utils.HandleErr(err)
 }
 
-// named return
-func restoreKey() (privKey *ecdsa.PrivateKey) {
-	keyAsBytes, err := os.ReadFile(fileName)
+func (w *wallet) restoreKey() {
+	keyAsecondHalfBytes, err := os.ReadFile(fileName)
 	utils.HandleErr(err)
-	privKey, err = x509.ParseECPrivateKey(keyAsBytes)
+	privKey, err := x509.ParseECPrivateKey(keyAsecondHalfBytes)
 	utils.HandleErr(err)
-	return
+
+	w.privateKey = privKey
 }
 
 func encodeBigInts(a, b []byte) string {
@@ -56,23 +60,11 @@ func encodeBigInts(a, b []byte) string {
 	return fmt.Sprintf("%x", z)
 }
 
-// making address from x and y in publicKey
 func aFromK(key *ecdsa.PrivateKey) string {
 	return encodeBigInts(key.X.Bytes(), key.Y.Bytes())
 }
 
-func Sign(payload string, w wallet) string {
-	// string to bytes
-	pAsBytes, err := hex.DecodeString(payload)
-	utils.HandleErr(err)
-
-	r, s, err := ecdsa.Sign(rand.Reader, w.privateKey, pAsBytes)
-	utils.HandleErr(err)
-
-	return encodeBigInts(r.Bytes(), s.Bytes())
-}
-
-func decodeBigInts(payload string) (*big.Int, *big.Int, error) {
+func restoreBigInts(payload string) (*big.Int, *big.Int, error) {
 	bytes, err := hex.DecodeString(payload)
 	if err != nil {
 		return nil, nil, err
@@ -81,7 +73,7 @@ func decodeBigInts(payload string) (*big.Int, *big.Int, error) {
 	firstHalfBytes := bytes[:len(bytes)/2]
 	secondHalfBytes := bytes[len(bytes)/2:]
 
-	bigA, bigB := big.Int{}, big.Int{}
+	var bigA, bigB = big.Int{}, big.Int{}
 	bigA.SetBytes(firstHalfBytes)
 	bigB.SetBytes(secondHalfBytes)
 
@@ -89,12 +81,10 @@ func decodeBigInts(payload string) (*big.Int, *big.Int, error) {
 }
 
 func Verify(signature, payload, address string) bool {
-	// 받아온 signature로부터 r, s 만들어서 payload로부터 생성된 것과 비교, 검증
-	r, s, err := decodeBigInts(signature)
+	r, s, err := restoreBigInts(signature)
 	utils.HandleErr(err)
 
-	// 받아온 address로부터 publickey를 만들어서 비교, 검증
-	x, y, err := decodeBigInts(address)
+	x, y, err := restoreBigInts(address)
 	utils.HandleErr(err)
 	publicKey := ecdsa.PublicKey{
 		Curve: elliptic.P256(),
@@ -102,19 +92,27 @@ func Verify(signature, payload, address string) bool {
 		Y:     y,
 	}
 
-	pAsBytes, err := hex.DecodeString(payload)
+	payloadBytes, err := hex.DecodeString(payload)
 	utils.HandleErr(err)
 
-	ok := ecdsa.Verify(&publicKey, pAsBytes, r, s)
-
+	ok := ecdsa.Verify(&publicKey, payloadBytes, r, s)
 	return ok
+}
+
+func Sign(payload string, w wallet) string {
+	payloadAsB, err := hex.DecodeString(payload)
+	utils.HandleErr(err)
+	r, s, err := ecdsa.Sign(rand.Reader, w.privateKey, payloadAsB)
+	utils.HandleErr(err)
+
+	return encodeBigInts(r.Bytes(), s.Bytes())
 }
 
 func Wallet() *wallet {
 	if w == nil {
 		w = &wallet{}
 		if hasWalletFile() {
-			w.privateKey = restoreKey()
+			w.restoreKey()
 		} else {
 			key := createPrivKey()
 			persistKey(key)
@@ -123,4 +121,8 @@ func Wallet() *wallet {
 		w.Address = aFromK(w.privateKey)
 	}
 	return w
+}
+
+func Start() {
+
 }
