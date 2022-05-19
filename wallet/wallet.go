@@ -14,11 +14,7 @@ import (
 )
 
 const (
-	myMessage     string = "BBaBi's Wallet"
-	hashedMessage string = "3c1b3cec2fd200f7d8847d72c667842006fe501d0f40050db5e832ebff6dc7d1"
-	privateKey    string = "307702010104207ce33616f538666ec75e4e1155ebbf7afb401632a31840df68c8c5c46f941a17a00a06082a8648ce3d030107a14403420004b522f1992aa67cddfdc2863384af2222dca2cc5557cdfd0723a6310af2ec25a5108417ab024e883d982a11f46b51dc7f4f60dd7ea5ca5f04df9344571079d9e3"
-	signature     string = "771b169e5de358546c18c3be6eaec13bef97aa1821ef08897ffa247daf7f9312ddf958be0fefaa1e0d85aaa1f1b3b1b1a70e7743ebfbfc93f0c9e47fbfddaf33"
-	fileName      string = "BBaBi.wallet"
+	fileName string = "BBaBi.wallet"
 )
 
 type wallet struct {
