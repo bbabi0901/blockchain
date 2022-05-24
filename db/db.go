@@ -1,12 +1,15 @@
 package db
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/bbabi0901/blockchain/utils"
 	bolt "go.etcd.io/bbolt"
 )
 
 const (
-	dbName       = "blockchain.db"
+	dbName       = "blockchain"
 	dataBucket   = "data" // Bucket is like table of SQL
 	blocksBucket = "blocks"
 	checkpoint   = "checkpoint"
@@ -14,10 +17,15 @@ const (
 
 var db *bolt.DB
 
+func getDbName() string {
+	port := os.Args[2][6:]
+	return fmt.Sprintf("%s_%s.db", dbName, port)
+}
+
 func DB() *bolt.DB {
 	if db == nil {
 		// init db
-		dbPointer, err := bolt.Open(dbName, 0600, nil)
+		dbPointer, err := bolt.Open(getDbName(), 0600, nil)
 		utils.HandleErr(err)
 		// read-write transaction by using db.Update()
 		db = dbPointer
@@ -72,4 +80,13 @@ func Block(hash string) []byte {
 		return nil
 	})
 	return data
+}
+
+func EmptyBlocks() {
+	DB().Update(func(tx *bolt.Tx) error {
+		utils.HandleErr(tx.DeleteBucket([]byte(blocksBucket)))
+		_, err := tx.CreateBucket([]byte(blocksBucket))
+		utils.HandleErr(err)
+		return nil
+	})
 }

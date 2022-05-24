@@ -7,11 +7,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// To protect map from data race, make Peers struct instead of variable.
+// To protect map from data race, make Peers as struct instead of variable.
 // And then put map inside the struct to protect, create mutex <- block the struct until unlocking
 type peers struct {
 	v map[string]*peer
-	m sync.Mutex
+	m sync.Mutex // Mutex will lock the struct where it is
 }
 
 var Peers peers = peers{
@@ -34,14 +34,15 @@ func (p *peer) close() {
 }
 
 func (p *peer) read() {
-	// defer is the code that runs after the function has finished -> if loop break the function ends, and go runs p.close()
+	// defer is the code that runs after the function has finished -> if loop break, the function ends. Then, go runs p.close()
 	defer p.close()
 	for {
-		_, m, err := p.conn.ReadMessage() // blocking for loop till it gets the message
+		m := Message{}
+		err := p.conn.ReadJSON(&m) // blocking for loop till it gets the message
 		if err != nil {
 			break
 		}
-		fmt.Printf("%s", m)
+		handleMessage(&m, p)
 	}
 }
 
@@ -68,6 +69,8 @@ func AllPeers(p *peers) []string {
 }
 
 func initPeer(conn *websocket.Conn, address, port string) *peer {
+	Peers.m.Lock()
+	defer Peers.m.Unlock()
 	key := fmt.Sprintf("%s:%s", address, port)
 	p := &peer{
 		conn:    conn,
