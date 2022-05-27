@@ -71,6 +71,7 @@ func AllPeers(p *peers) []string {
 func initPeer(conn *websocket.Conn, address, port string) *peer {
 	Peers.m.Lock()
 	defer Peers.m.Unlock()
+
 	key := fmt.Sprintf("%s:%s", address, port)
 	p := &peer{
 		conn:    conn,

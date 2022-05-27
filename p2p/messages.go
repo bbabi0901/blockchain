@@ -3,6 +3,7 @@ package p2p
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/bbabi0901/blockchain/blockchain"
 	"github.com/bbabi0901/blockchain/utils"
@@ -16,6 +17,7 @@ const (
 	MessageAllBlocksResponse                    // this will be 2 bco iota
 	MessageNewBlockNotify
 	MessageNewTxNotify
+	MessageNewPeerNotify
 )
 
 type Message struct {
@@ -59,6 +61,11 @@ func notifyNewTx(tx *blockchain.Tx, p *peer) {
 	p.inbox <- m
 }
 
+func notifyNewPeer(address string, p *peer) {
+	m := makeMessage(MessageNewPeerNotify, address)
+	p.inbox <- m
+}
+
 func handleMessage(m *Message, p *peer) {
 	switch m.Kind {
 	case MessageNewestBlock:
@@ -66,11 +73,7 @@ func handleMessage(m *Message, p *peer) {
 		utils.HandleErr(json.Unmarshal(m.Payload, &payload))
 		b, err := blockchain.FindBlock(blockchain.Blockchain().NewestHash)
 		utils.HandleErr(err)
-		// if the function is running by port 3000, b is the block of port 3000 and p is that of port 4000
-		// so if block height of port 4000 is higher than that of port 3000, port 3000 will request all the blocks from 4000
-		// else, port 3000 will send all the blocks to 4000
 		if payload.Height >= b.Height {
-			// b-side will request all the blocks from p-side
 			requestAllBlocks(p)
 		} else {
 			sendNewestBlock(p)
@@ -91,5 +94,10 @@ func handleMessage(m *Message, p *peer) {
 		var payload *blockchain.Tx
 		utils.HandleErr(json.Unmarshal(m.Payload, &payload))
 		blockchain.Mempool().AddPeerTx(payload)
+	case MessageNewPeerNotify:
+		var payload string
+		utils.HandleErr(json.Unmarshal(m.Payload, &payload))
+		parts := strings.Split(payload, ":")
+		AddPeer(parts[0], parts[1], parts[2], false)
 	}
 }

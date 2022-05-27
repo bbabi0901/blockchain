@@ -119,6 +119,7 @@ func block(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
 func balance(rw http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	address := vars["address"]
@@ -130,6 +131,11 @@ func balance(rw http.ResponseWriter, r *http.Request) {
 	default:
 		utils.HandleErr(json.NewEncoder(rw).Encode(blockchain.UTxOutsByAddress(address, blockchain.Blockchain())))
 	}
+}
+*/
+
+func balance(rw http.ResponseWriter, r *http.Request) {
+	blockchain.Balance(blockchain.Blockchain(), rw, r)
 }
 
 func mempool(rw http.ResponseWriter, r *http.Request) {
@@ -149,7 +155,7 @@ func peers(rw http.ResponseWriter, r *http.Request) {
 	case "POST":
 		var payload addPeerPayload
 		json.NewDecoder(r.Body).Decode(&payload)
-		p2p.AddPeer(payload.Address, payload.Port, port)
+		p2p.AddPeer(payload.Address, payload.Port, port[1:], true)
 		rw.WriteHeader(http.StatusOK)
 	case "GET":
 		json.NewEncoder(rw).Encode(p2p.AllPeers(&p2p.Peers))

@@ -55,16 +55,14 @@ func Mempool() *mempool {
 var ErrorNoMoney = errors.New("Not enough funds")
 var ErrorNotValid = errors.New("Transaction Invalid")
 
-// empty the memory pool, return the transaction
 func (m *mempool) TxToConfirm() []*Tx {
-	// coinbase := makeCoinbaseTx("BBaBi")
-	coinbase := makeCoinbaseTx(wallet.Wallet().Address)
 	var txs []*Tx
+	coinbase := makeCoinbaseTx(wallet.Wallet().Address)
 	txs = append(txs, coinbase)
 	for _, tx := range m.Txs {
 		txs = append(txs, tx)
 	}
-	m.Txs = make(map[string]*Tx)
+	m.Txs = make(map[string]*Tx) // empty mempool
 	return txs
 }
 
@@ -72,6 +70,15 @@ func (m *mempool) AddPeerTx(tx *Tx) {
 	m.M.Lock()
 	defer m.M.Unlock()
 	m.Txs[tx.ID] = tx
+}
+
+func (m *mempool) AddTx(to string, amount int) (*Tx, error) {
+	tx, err := makeTx(wallet.Wallet().Address, to, amount)
+	if err != nil {
+		return nil, err
+	}
+	m.Txs[tx.ID] = tx
+	return tx, nil
 }
 
 func (t *Tx) getId() {
@@ -82,15 +89,6 @@ func (t *Tx) sign() {
 	for _, txIn := range t.TxIns {
 		txIn.Signature = wallet.Sign(t.ID, *wallet.Wallet())
 	}
-}
-
-func (m *mempool) AddTx(to string, amount int) (*Tx, error) {
-	tx, err := makeTx(wallet.Wallet().Address, to, amount)
-	if err != nil {
-		return nil, err
-	}
-	m.Txs[tx.ID] = tx
-	return tx, nil
 }
 
 // to check if unspent tx output is on mempool.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/bbabi0901/blockchain/db"
 	"github.com/bbabi0901/blockchain/utils"
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -21,6 +22,11 @@ type blockchain struct {
 	Height            int    `json:"height"`
 	CurrentDifficulty int    `json:"currentDifficulty"`
 	m                 sync.Mutex
+}
+
+type balanceResponse struct {
+	Address string `json:"address"`
+	Amount  int    `json:"amount"`
 }
 
 var b *blockchain
@@ -105,24 +111,37 @@ func Status(b *blockchain, rw http.ResponseWriter) {
 	json.NewEncoder(rw).Encode(b)
 }
 
-// mutating the difficulty of *blockchain, thus it should be method
+func Balance(b *blockchain, rw http.ResponseWriter, r *http.Request) {
+	b.m.Lock()
+	defer b.m.Unlock()
+
+	vars := mux.Vars(r)
+	address := vars["address"]
+	total := r.URL.Query().Get("total")
+	switch total {
+	case "true":
+		amount := BalanceByAddress(address, b)
+		utils.HandleErr(json.NewEncoder(rw).Encode(balanceResponse{address, amount}))
+	default:
+		utils.HandleErr(json.NewEncoder(rw).Encode(UTxOutsByAddress(address, b)))
+	}
+}
+
 func getDifficulty(b *blockchain) int {
 	if b.Height == 0 {
 		return defaultDifficulty
 	} else if b.Height%difficultyInterval == 0 {
-		// recalculate difficulty
 		return recalculateDifficulty(b)
 	} else {
 		return b.CurrentDifficulty
 	}
 }
 
-// Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
 func recalculateDifficulty(b *blockchain) int {
 	allBlocks := Blocks(b)
 	newestBlock := allBlocks[0]
 	lastRecalculatedBlock := allBlocks[difficultyInterval-1]
-	actualTime := (newestBlock.Timestamp - lastRecalculatedBlock.Timestamp) / 60 // min
+	actualTime := (newestBlock.Timestamp / 60) - (lastRecalculatedBlock.Timestamp / 60) // min
 	expectedTime := difficultyInterval * blockInterval
 	if actualTime <= (expectedTime - allowedRange) {
 		return b.CurrentDifficulty + 1
