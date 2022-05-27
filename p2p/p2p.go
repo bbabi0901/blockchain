@@ -31,15 +31,24 @@ func Upgrade(rw http.ResponseWriter, r *http.Request) {
 }
 
 func AddPeer(address, port, openPort string) {
-	// Port :4000 is requesting an upgrade from the port :3000
 	conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s:%s/ws?openPort=%s", address, port, openPort[1:]), nil)
 	utils.HandleErr(err)
 	p := initPeer(conn, address, port)
 	sendNewestBlock(p)
 }
 
-func BroadcastNewBlock(block *blockchain.Block) {
+func BroadcastNewBlock(b *blockchain.Block) {
+	Peers.m.Lock()
+	defer Peers.m.Unlock()
 	for _, peer := range Peers.v {
-		notifyNewBlock(block, peer)
+		notifyNewBlock(b, peer)
+	}
+}
+
+func BroadcastNewTx(tx *blockchain.Tx) {
+	Peers.m.Lock()
+	defer Peers.m.Unlock()
+	for _, peer := range Peers.v {
+		notifyNewTx(tx, peer)
 	}
 }

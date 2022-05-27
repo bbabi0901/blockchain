@@ -62,6 +62,26 @@ func (b *blockchain) Replace(newBlocks []*Block) {
 	}
 }
 
+func (b *blockchain) AddPeerBlock(newBlock *Block) {
+	b.m.Lock()
+	m.M.Lock()
+	defer b.m.Unlock()
+	defer m.M.Unlock()
+
+	b.Height += 1
+	b.CurrentDifficulty = newBlock.Difficulty
+	b.NewestHash = newBlock.Hash
+	persistBlockchain(b)
+	persistBlock(newBlock)
+
+	for _, tx := range newBlock.Transactions {
+		_, ok := m.Txs[tx.ID]
+		if ok {
+			delete(m.Txs, tx.ID)
+		}
+	}
+}
+
 func Blockchain() *blockchain {
 	once.Do(func() {
 		b = &blockchain{
@@ -91,14 +111,14 @@ func getDifficulty(b *blockchain) int {
 		return defaultDifficulty
 	} else if b.Height%difficultyInterval == 0 {
 		// recalculate difficulty
-		return recalculateDiffculty(b)
+		return recalculateDifficulty(b)
 	} else {
 		return b.CurrentDifficulty
 	}
 }
 
 // Doesn't change *blockchain but just take it as an input for newestHash. It should be a function
-func recalculateDiffculty(b *blockchain) int {
+func recalculateDifficulty(b *blockchain) int {
 	allBlocks := Blocks(b)
 	newestBlock := allBlocks[0]
 	lastRecalculatedBlock := allBlocks[difficultyInterval-1]

@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/bbabi0901/blockchain/utils"
@@ -35,10 +36,21 @@ type UTxOut struct {
 }
 
 type mempool struct {
-	Txs []*Tx
+	Txs map[string]*Tx
+	M   sync.Mutex
 }
 
-var Mempool *mempool = &mempool{}
+var m *mempool = &mempool{}
+var memOnce sync.Once
+
+func Mempool() *mempool {
+	memOnce.Do(func() {
+		m = &mempool{
+			Txs: make(map[string]*Tx),
+		}
+	})
+	return m
+}
 
 var ErrorNoMoney = errors.New("Not enough funds")
 var ErrorNotValid = errors.New("Transaction Invalid")
@@ -47,10 +59,19 @@ var ErrorNotValid = errors.New("Transaction Invalid")
 func (m *mempool) TxToConfirm() []*Tx {
 	// coinbase := makeCoinbaseTx("BBaBi")
 	coinbase := makeCoinbaseTx(wallet.Wallet().Address)
-	txs := m.Txs
+	var txs []*Tx
 	txs = append(txs, coinbase)
-	m.Txs = nil
+	for _, tx := range m.Txs {
+		txs = append(txs, tx)
+	}
+	m.Txs = make(map[string]*Tx)
 	return txs
+}
+
+func (m *mempool) AddPeerTx(tx *Tx) {
+	m.M.Lock()
+	defer m.M.Unlock()
+	m.Txs[tx.ID] = tx
 }
 
 func (t *Tx) getId() {
@@ -63,15 +84,13 @@ func (t *Tx) sign() {
 	}
 }
 
-// add transaction to mempool before adding it to block
-func (m *mempool) AddTx(to string, amount int) error {
-	// tx, err := makeTx("BBaBi", to, amount)
+func (m *mempool) AddTx(to string, amount int) (*Tx, error) {
 	tx, err := makeTx(wallet.Wallet().Address, to, amount)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	m.Txs = append(m.Txs, tx)
-	return nil
+	m.Txs[tx.ID] = tx
+	return tx, nil
 }
 
 // to check if unspent tx output is on mempool.
@@ -79,7 +98,7 @@ func isOnMempool(uTxOut *UTxOut) bool {
 	exists := false
 
 Outer: // labeling each for loops
-	for _, tx := range Mempool.Txs {
+	for _, tx := range Mempool().Txs {
 		for _, input := range tx.TxIns {
 			exists = input.TxID == uTxOut.TxID && input.Index == uTxOut.Index
 			break Outer // you can only break inner loop if there's no labeling

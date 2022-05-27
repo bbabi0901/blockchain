@@ -15,6 +15,7 @@ const (
 	MessageAllBlocksRequest                     // First variable is 0, and this will be 1 bco iota
 	MessageAllBlocksResponse                    // this will be 2 bco iota
 	MessageNewBlockNotify
+	MessageNewTxNotify
 )
 
 type Message struct {
@@ -31,9 +32,10 @@ func makeMessage(kind MessageKind, payload interface{}) []byte {
 }
 
 func sendNewestBlock(p *peer) {
+	fmt.Printf("Sending newest block to %s\n", p.key)
 	b, err := blockchain.FindBlock(blockchain.Blockchain().NewestHash)
 	utils.HandleErr(err)
-	m := makeMessage(MessageNewestBlock, b) // message should be byte of json
+	m := makeMessage(MessageNewestBlock, b)
 	p.inbox <- m
 }
 
@@ -52,6 +54,11 @@ func notifyNewBlock(b *blockchain.Block, p *peer) {
 	p.inbox <- m
 }
 
+func notifyNewTx(tx *blockchain.Tx, p *peer) {
+	m := makeMessage(MessageNewTxNotify, tx)
+	p.inbox <- m
+}
+
 func handleMessage(m *Message, p *peer) {
 	switch m.Kind {
 	case MessageNewestBlock:
@@ -59,7 +66,6 @@ func handleMessage(m *Message, p *peer) {
 		utils.HandleErr(json.Unmarshal(m.Payload, &payload))
 		b, err := blockchain.FindBlock(blockchain.Blockchain().NewestHash)
 		utils.HandleErr(err)
-
 		// if the function is running by port 3000, b is the block of port 3000 and p is that of port 4000
 		// so if block height of port 4000 is higher than that of port 3000, port 3000 will request all the blocks from 4000
 		// else, port 3000 will send all the blocks to 4000
@@ -78,6 +84,12 @@ func handleMessage(m *Message, p *peer) {
 		utils.HandleErr(json.Unmarshal(m.Payload, &payload))
 		blockchain.Blockchain().Replace(payload)
 	case MessageNewBlockNotify:
-
+		var payload *blockchain.Block
+		utils.HandleErr(json.Unmarshal(m.Payload, &payload))
+		blockchain.Blockchain().AddPeerBlock(payload)
+	case MessageNewTxNotify:
+		var payload *blockchain.Tx
+		utils.HandleErr(json.Unmarshal(m.Payload, &payload))
+		blockchain.Mempool().AddPeerTx(payload)
 	}
 }
