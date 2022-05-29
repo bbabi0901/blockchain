@@ -11,9 +11,12 @@ import (
 	"strings"
 )
 
+var logFn = log.Panic
+
+// for testing, make log.Panic as custom fn
 func HandleErr(err error) {
 	if err != nil {
-		log.Panic(err)
+		logFn(err)
 	}
 }
 
