@@ -10,7 +10,7 @@ POST http://localhost:4000/blocks
 http://localhost:3000/status
 
 ###
-http://localhost:4000/balance/cebcd0612198b9b225baeb5a5a4f5204941f66907b6167da8864b164b97bc839ad5eb6cc4220f7cb7e16d5116b2198eb4710d11c80e0adaf4462bbced307c4fe?total=true
+http://localhost:3000/balance/cebcd0612198b9b225baeb5a5a4f5204941f66907b6167da8864b164b97bc839ad5eb6cc4220f7cb7e16d5116b2198eb4710d11c80e0adaf4462bbced307c4fe?total=true
 
 ###
 POST http://localhost:4000/transactions
@@ -21,18 +21,18 @@ POST http://localhost:4000/transactions
 }
 
 ###
-http://localhost:4000/mempool
+http://localhost:3000/mempool
 
 ###
 http://localhost:4000/wallet
 
 ###
-POST http://localhost:4000/peers
+POST http://localhost:2000/peers
 
 {
     "address": "127.0.0.1",
-    "port": "3000" 
+    "port": "8888" 
 }
 
 ###
-http://localhost:4000/peers
+http://localhost:8888/peers

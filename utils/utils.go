@@ -1,3 +1,4 @@
+// Package utils ontains the functions to be used across the application.
 package utils
 
 import (
@@ -16,18 +17,20 @@ func HandleErr(err error) {
 	}
 }
 
-func ToBytes(i interface{}) []byte { // interface를 인자로 하면 어떤 타입이라도 받을 수 있다.
-	var aBuffer bytes.Buffer            // where we put ourt bytes
-	encoder := gob.NewEncoder(&aBuffer) // gob is package for encoding/decoding bytes
-	HandleErr(encoder.Encode(i))        // encode whole block then put the result in the blockBuffer
+func ToBytes(i interface{}) []byte {
+	var aBuffer bytes.Buffer
+	encoder := gob.NewEncoder(&aBuffer)
+	HandleErr(encoder.Encode(i))
 	return aBuffer.Bytes()
 }
 
+// FromBytes takes an interface and data and then will encode the data to the interface.
 func FromBytes(i interface{}, data []byte) {
 	decoder := gob.NewDecoder(bytes.NewReader(data))
 	HandleErr(decoder.Decode(i))
 }
 
+// Hash takes an interface, hashes it and returns the hex encoding of the hash.
 func Hash(i interface{}) string {
 	s := fmt.Sprintf("%v", i)
 	hash := sha256.Sum256([]byte(s))
