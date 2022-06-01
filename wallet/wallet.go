@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"math/big"
 	"os"
 
@@ -17,17 +18,35 @@ const (
 	fileName string = "BBaBi.wallet"
 )
 
+type fileLayer interface {
+	hasWalletFile() bool
+	writeFile(name string, data []byte, perm fs.FileMode) error
+	readFile(name string) ([]byte, error)
+}
+
+type layer struct{}
+
+func (layer) hasWalletFile() bool {
+	_, err := os.Stat(fileName)
+	return !os.IsNotExist(err)
+}
+
+func (layer) writeFile(name string, data []byte, perm fs.FileMode) error {
+	return os.WriteFile(name, data, perm)
+}
+
+func (layer) readFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
+}
+
+var files fileLayer = layer{}
+
 type wallet struct {
 	privateKey *ecdsa.PrivateKey
 	Address    string
 }
 
 var w *wallet
-
-func hasWalletFile() bool {
-	_, err := os.Stat(fileName)
-	return !os.IsNotExist(err)
-}
 
 func createPrivKey() *ecdsa.PrivateKey {
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -36,16 +55,16 @@ func createPrivKey() *ecdsa.PrivateKey {
 }
 
 func persistKey(key *ecdsa.PrivateKey) {
-	keyAsecondHalfBytes, err := x509.MarshalECPrivateKey(key)
+	byte, err := x509.MarshalECPrivateKey(key)
 	utils.HandleErr(err)
-	err = os.WriteFile(fileName, keyAsecondHalfBytes, 0644) // 0644; permission to write and read
+	err = files.writeFile(fileName, byte, 0644) // 0644; permission to write and read
 	utils.HandleErr(err)
 }
 
 func (w *wallet) restoreKey() {
-	keyAsecondHalfBytes, err := os.ReadFile(fileName)
+	byte, err := files.readFile(fileName)
 	utils.HandleErr(err)
-	privKey, err := x509.ParseECPrivateKey(keyAsecondHalfBytes)
+	privKey, err := x509.ParseECPrivateKey(byte)
 	utils.HandleErr(err)
 
 	w.privateKey = privKey
@@ -107,7 +126,7 @@ func Sign(payload string, w wallet) string {
 func Wallet() *wallet {
 	if w == nil {
 		w = &wallet{}
-		if hasWalletFile() {
+		if files.hasWalletFile() {
 			w.restoreKey()
 		} else {
 			key := createPrivKey()
